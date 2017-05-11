@@ -3,6 +3,8 @@ crebin
 
 Code to rapidly and accurately rebin binned data (such as spectra) with flexibility in how values are combined in the binning. 
 
+Note that I know next to nothing about Cython, in which this is written. Basically, I needed a fast rebinning code for Python and couldn't find one, so I flailed around with Cython until I got something that worked and then never touched it again until just now when I went to share it on Github. 
+
 Normal rebinning takes the average of the values of the bins, weighted by the width of each bin. For example, if a new bin covers 40% of bin a, all of bin b, and 70% of bin c, then the value in that new bin is
 
 (0.4*a + 1.0*b + 0.7*c)/(0.4*w_a + 1.0*w_b + 0.7*w_c)
@@ -11,8 +13,28 @@ where a,b, and c are the values in the bins and w_a, w_b, and w_c are the bin wi
 
 Sometimes, however, you might desire other types of binning. For example, if you are tracking data quality flags, then you will want to "or" the bins. That is, if two bins are combined and one has a data quality flag, you want the new bin to have that flag as well.
 
-As of 2017/05/10 `crebin` supports average (normal), sum, and, or, min, and max rebinning. 
+As of 2017/05/10 `crebin` supports avg (average, most common choice), sum, and, or, min, and max methods for rebinning. 
 
-I wrote this for use across my data analysis codes. It isn't pretty and I'm not devoting time to supporting it, but if you're looking for fast and accurate code to handle rebinning data, it might be worth your time to implement this. 
+Import crebin like
 
+```
+from crebin import rebin
+```
 
+(I'm not sure why I made a crebin module with rebin inside, but whatever.)
+
+Here's an example call
+
+```
+y_new = rebin.rebin(newbins, oldbins, old_y, 'avg')
+```
+
+where newbins and oldbins define the bin edges (no gaps!) and y the values in each oldbin, so len(oldbins) = len(old_y) + 1. 
+
+I added a second function to rebin ordinate data -- i.e. to take a series of points and compute the integral within a series of bins. As of 2017/05/10 this function only supports avg and sum methods. All arguments must be double precision arrays.
+
+An example call for this is
+
+```
+y_binned = rebin.bin(newbins, x, y, 'avg')
+```
