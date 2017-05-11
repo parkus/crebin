@@ -8,6 +8,7 @@ ctypedef np.int64_t LONG_t
 ctypedef np.float64_t DBL_t
 ctypedef np.int32_t INT_t
 
+# this is all just so I can handle different data types
 def rebin(np.ndarray[DBL_t] nb, np.ndarray[DBL_t] ob, ov, method):
     n = len(nb) - 1
     if type(ov.item(0)) is float:
@@ -30,6 +31,16 @@ def rebin_int(nb, ob, np.ndarray[INT_t] ov, method, n):
     return __rebin(nb, ob, ov, nv, method, n)
 
 def __rebin(nb, ob, ov, nv, method, n):
+
+    if np.any(np.diff(nb) <= 0) or np.any(np.diff(ob) <= 0):
+        raise ValueError('No zero or negative length bins allowed!')
+
+    # average and sum are very similar, so I will make avg work by using sum
+    if method == 'avg':
+        od = np.diff(ob)
+        nd = np.diff(nb)
+        sums = __rebin(nb, ob, ov*od, nv, 'sum', n)
+        return sums/nd
 
     cdef np.ndarray[LONG_t] binmap = np.searchsorted(ob, nb, 'left')
 
@@ -83,5 +94,41 @@ def __rebin(nb, ob, ov, nv, method, n):
             for i in range(i0+1, i1):
                 if ov[i] > nv[k]:
                     nv[k] = ov[i]
+
+    return nv
+
+
+def bin(np.ndarray[DBL_t] b, np.ndarray[DBL_t] x, np.ndarray[DBL_t] y, method):
+
+    if np.any(np.diff(b) <= 0):
+        raise ValueError('No zero or negative length bins allowed!')
+    if np.any(x[1:] <= x[:-1]):
+        raise ValueError('x values must be monotonically increasing!')
+
+    # average and sum are very similar, so I will make avg work by using sum
+    if method == 'avg':
+        nd = np.diff(b)
+        sums = bin(b, x, y, 'sum')
+        return sums / nd
+
+    n = len(b) - 1
+
+    # xx and yy have the bin edge values inserted into the input values
+    cdef np.ndarray[DBL_t] xx = np.union1d(x, b)
+    cdef np.ndarray[DBL_t] yy = np.interp(xx, x, y)
+    cdef np.ndarray[LONG_t] binmap = np.searchsorted(xx, b, 'left')
+
+    cdef long k, i0, i1
+    cdef np.ndarray[DBL_t] nv = np.zeros(n, dtype=DBL)
+
+    #guess for speed I won't make it check what method to use in each loop iteration
+    if method == 'sum':
+        for k in range(n):
+            i0 = binmap[k]
+            i1 = binmap[k+1]
+            s = 0.0
+            for i in range(i0, i1):
+                s += 0.5*(yy[i+1] + yy[i])*(xx[i+1] - xx[i])
+            nv[k] = s
 
     return nv
