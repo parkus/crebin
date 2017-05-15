@@ -23,18 +23,35 @@ from crebin import rebin
 
 (I'm not sure why I made a crebin module with rebin inside, but whatever.)
 
-Here's an example call
+Example:
 
 ```
-y_new = rebin.rebin(newbins, oldbins, old_y, 'avg')
+oldbins = np.arange(6, dtype='f8')
+newbins = np.array([0, 0.5, 2.5, 3.5, 4.0])
+y = np.array([0, 1., 2, 1, 0])
+rebin.rebin(newbins, oldbins, y, 'avg')
 ```
+
+This supports numpy data types of int32, int64, or float64 for y. The bin edges must be float64 data type.
 
 where newbins and oldbins define the bin edges (no gaps!) and y the values in each oldbin, so len(oldbins) = len(old_y) + 1. 
 
 I added a second function to rebin ordinate data -- i.e. to take a series of points and compute the integral within a series of bins. As of 2017/05/10 this function only supports avg and sum methods. All arguments must be double precision arrays.
 
-An example call for this is
+Example:
 
 ```
-y_binned = rebin.bin(newbins, x, y, 'avg')
+x = np.arange(5, dtype='f8')
+y = np.array([0, 1., 2, 1, 0])
+rebin.bin(newbins, x, y, 'avg')
 ```
+
+Aaaand I added a third function for fast rebinning of multiple data vectors that use the same binning. Currently it only supports data types of float64 for y.
+
+```
+oldbins = np.arange(6, dtype='f8')
+newbins = np.array([0, 0.5, 2.5, 3.5, 4.0])
+y = np.array([[0, 1., 2, 1, 0]]*4)
+rebin.rebin_rows(newbins, oldbins, y, 'avg')
+```
+
