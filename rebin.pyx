@@ -8,16 +8,6 @@ ctypedef np.int64_t LONG_t
 ctypedef np.float64_t DBL_t
 ctypedef np.int32_t INT_t
 
-# this is all just so I can handle different data types
-def rebin(np.ndarray[DBL_t] nb, np.ndarray[DBL_t] ob, ov, method):
-    n = len(nb) - 1
-    if type(ov.item(0)) is float:
-        return rebin_float(nb, ob, ov.astype('f8'), method, n)
-    elif type(ov.item(0)) is int:
-        return rebin_int(nb, ob, ov.astype('i4'), method, n)
-    elif type(ov.item(0)) is long:
-        return rebin_long(nb, ob, ov.astype('i8'), method, n)
-
 def rebin_float(nb, ob, np.ndarray[DBL_t] ov, method, n):
     cdef np.ndarray[DBL_t] nv = np.zeros(n, dtype=DBL)
     return __rebin(nb, ob, ov, nv, method, n)
@@ -30,10 +20,12 @@ def rebin_int(nb, ob, np.ndarray[INT_t] ov, method, n):
     cdef np.ndarray[INT_t] nv = np.zeros(n, dtype=INT)
     return __rebin(nb, ob, ov, nv, method, n)
 
-def __rebin(nb, ob, ov, nv, method, n):
 
+def __rebin(nb, ob, ov, nv, method, n):
     if np.any(np.diff(nb) <= 0) or np.any(np.diff(ob) <= 0):
         raise ValueError('No zero or negative length bins allowed!')
+    if (nb[0] < ob[0]) or (nb[-1] > ob[-1]):
+        raise ValueError('New bins cannot extend beyond old bins.')
 
     # average and sum are very similar, so I will make avg work by using sum
     if method == 'avg':
@@ -44,7 +36,7 @@ def __rebin(nb, ob, ov, nv, method, n):
 
     cdef np.ndarray[LONG_t] binmap = np.searchsorted(ob, nb, 'left')
 
-    cdef long k, i0, i1
+    cdef size_t k, i, i0, i1
 
     #guess for speed I won't make it check what method to use in each loop iteration
     if method == 'sum':
@@ -96,6 +88,71 @@ def __rebin(nb, ob, ov, nv, method, n):
                     nv[k] = ov[i]
 
     return nv
+
+
+def rebin_rows(np.ndarray[DBL_t] nb, np.ndarray[DBL_t] ob, np.ndarray[DBL_t, ndim=2] ov, method):
+    if np.any(np.diff(nb) <= 0) or np.any(np.diff(ob) <= 0):
+        raise ValueError('No zero or negative length bins allowed!')
+    if (nb[0] < ob[0]) or (nb[-1] > ob[-1]):
+        raise ValueError('New bins cannot extend beyond old bins.')
+
+    # average and sum are very similar, so I will make avg work by using sum
+    if method == 'avg':
+        od = np.diff(ob)
+        nd = np.diff(nb)
+        sums = rebin_rows(nb, ob, ov*od[None,:], 'sum')
+        return sums/nd[None,:]
+
+    cdef size_t n = len(nb) - 1
+    cdef size_t m = len(ov)
+
+    cdef np.ndarray[DBL_t, ndim=2] nv = np.zeros([m,n], dtype=DBL)
+
+    cdef np.ndarray[LONG_t] binmap = np.searchsorted(ob, nb, 'left')
+
+    cdef size_t k, i, i0, i1
+    cdef double fac, leftfac, rightfac, mid
+
+    #guess for speed I won't make it check what method to use in each loop iteration
+    if method == 'sum':
+        for k in range(n):
+            i0 = binmap[k]
+            i1 = binmap[k+1]
+            if i0 == i1:
+                fac = (nb[k+1] - nb[k]) / (ob[i0] - ob[i0-1])
+                for j in range(m):
+                    nv[j,k] = fac * ov[j,i0-1]
+            else:
+                if nb[k] != ob[i0]:
+                    leftfac = (ob[i0] - nb[k]) / (ob[i0] - ob[i0-1])
+                    i_left = i0-1
+                else:
+                    leftfac = 0.0
+                    i_left = 0 # using this prevents an attempt at accessing index -1 if i0=0
+                if nb[k+1] != ob[i1]:
+                    rightfac = (nb[k+1] - ob[i1-1]) / (ob[i1] - ob[i1-1])
+                    i1 -= 1
+                    i_right = i1
+                else:
+                    rightfac = 0.0
+                    i_right = 0
+                for j in range(m):
+                    mid = 0.0
+                    for i in range(i0, i1):
+                        mid += ov[j,i]
+                    nv[j,k] = leftfac*ov[j,i_left] + mid + rightfac*ov[j,i_right]
+
+    return nv
+
+# this is all just so I can handle different data types
+def rebin(np.ndarray[DBL_t] nb, np.ndarray[DBL_t] ob, ov, method):
+    n = len(nb) - 1
+    if type(ov.item(0)) is float:
+        return rebin_float(nb, ob, ov.astype('f8'), method, n)
+    elif type(ov.item(0)) is int:
+        return rebin_int(nb, ob, ov.astype('i4'), method, n)
+    elif type(ov.item(0)) is long:
+        return rebin_long(nb, ob, ov.astype('i8'), method, n)
 
 
 def bin(np.ndarray[DBL_t] b, np.ndarray[DBL_t] x, np.ndarray[DBL_t] y, method):
