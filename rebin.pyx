@@ -204,39 +204,29 @@ def bin_rows(np.ndarray[DBL_t] b, np.ndarray[DBL_t] x, np.ndarray[DBL_t, ndim=2]
     # average and sum are very similar, so I will make avg work by using sum
     if method == 'avg':
         nd = np.diff(b)
-        sums = bin(b, x, y, 'sum')
-        return sums / nd
+        sums = bin_rows(b, x, y, 'sum')
+        return sums / nd[None,:]
 
     m = len(y)
     n = len(b) - 1
 
     # xx and yy have the bin edge values inserted into the input values
+    ii = np.searchsorted(x, b)
+    cdef np.ndarray[LONG_t] binmap = ii + np.arange(len(ii), dtype=LONG)
+    cdef np.ndarray[DBL_t] xx = np.insert(x, ii, b)
+    yb = np.array([np.interp(b, x, _y) for _y in y])
+    cdef np.ndarray[DBL_t, ndim=2] yy = np.insert(y, ii, yb, axis=1)
+
+    cdef size_t i, j, k, i0, i1
     cdef np.ndarray[DBL_t, ndim=2] nv = np.zeros([m,n], dtype=DBL)
-    cdef np.ndarray[DBL_t] ya = np.copy(y[:,0])
-    cdef size_t i, j, k
-    cdef float xb, xa, dx2, fac, yb
 
     if method == 'sum':
-        xa = b[0]
-        i = 0
-        while x[i] < xa:
-            i += 1
         for k in range(n):
-            sums = np.zeros(m, dtype=DBL)
-            xb = b[k+1]
-            while x[i] < xb:
-                dx2 = (x[i] - xa)/2.0
+            i0 = binmap[k]
+            i1 = binmap[k+1]
+            for i in range(i0, i1):
+                dx2 = (xx[i+1] - xx[i])/2.0
                 for j in range(m):
-                    sums[j] += (ya[j] + y[j,i])*dx2
-                    ya[j] = y[j,i]
-                xa = x[i]
-                i += 1
-            dx2 = (xb - xa)/2.0
-            fac = (xb - x[i-1])/(x[i] - x[i-1])
-            for j in range(m):
-                yb = (y[j,i] - y[j,i-1])*fac + y[j,i-1]
-                nv[j,k] = sums[j] + (yb + ya[j])*dx2
-                ya[j] = yb
-            xa = xb
+                    nv[j,k] += dx2*(yy[j,i+1] + yy[j,i])
 
     return nv
