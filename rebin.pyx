@@ -173,9 +173,11 @@ def bin(np.ndarray[DBL_t] b, np.ndarray[DBL_t] x, np.ndarray[DBL_t] y, method):
     n = len(b) - 1
 
     # xx and yy have the bin edge values inserted into the input values
-    cdef np.ndarray[DBL_t] xx = np.union1d(x, b)
-    cdef np.ndarray[DBL_t] yy = np.interp(xx, x, y)
-    cdef np.ndarray[LONG_t] binmap = np.searchsorted(xx, b, 'left')
+    ii = np.searchsorted(x, b)
+    cdef np.ndarray[LONG_t] binmap = ii + np.arange(len(ii), dtype=LONG)
+    cdef np.ndarray[DBL_t] xx = np.insert(x, ii, b)
+    yb = np.interp(b, x, y)
+    cdef np.ndarray[DBL_t] yy = np.insert(y, ii, yb)
 
     cdef size_t i, k, i0, i1
     cdef np.ndarray[DBL_t] nv = np.zeros(n, dtype=DBL)
@@ -184,10 +186,8 @@ def bin(np.ndarray[DBL_t] b, np.ndarray[DBL_t] x, np.ndarray[DBL_t] y, method):
         for k in range(n):
             i0 = binmap[k]
             i1 = binmap[k+1]
-            s = 0.0
             for i in range(i0, i1):
-                s += 0.5*(yy[i+1] + yy[i])*(xx[i+1] - xx[i])
-            nv[k] = s
+                nv[k] += 0.5*(yy[i+1] + yy[i])*(xx[i+1] - xx[i])
 
     return nv
 
