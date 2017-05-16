@@ -43,15 +43,24 @@ Example:
 ```
 x = np.arange(5, dtype='f8')
 y = np.array([0, 1., 2, 1, 0])
-rebin.bin(newbins, x, y, 'avg')
+b = np.array([0, 1.0, 2.0, 3.5, 4.0])
+rebin.bin(b, x, y, 'avg')
 ```
 
-Aaaand I added a third function for fast rebinning of multiple data vectors that use the same binning. Currently it only supports data types of float64 for y.
+Aaaand I added a third function for fast rebinning of multiple data vectors that use the same binning. Currently it only supports data types of float64 for y. DISCLAIMER: I haven't tested this to see if it is actually faster because I realized what I really needed was a bin_rows function rather than rebin_rows.
 
 ```
 oldbins = np.arange(6, dtype='f8')
 newbins = np.array([0, 0.5, 2.5, 3.5, 4.0])
 y = np.array([[0, 1., 2, 1, 0]]*4)
 rebin.rebin_rows(newbins, oldbins, y, 'avg')
+```
+And now a fourth -- bin_rows. It's about 2x faster than looping bin. 
+
+```
+x = np.arange(5, dtype='f8')
+y = np.array([[0, 1., 2, 1, 0]]*4)
+b = np.array([0, 1.0, 2.0, 3.5, 4.0])
+rebin.bin_rows(b, x, y, 'avg')
 ```
 
