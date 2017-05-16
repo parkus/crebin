@@ -161,6 +161,8 @@ def bin(np.ndarray[DBL_t] b, np.ndarray[DBL_t] x, np.ndarray[DBL_t] y, method):
         raise ValueError('No zero or negative length bins allowed!')
     if np.any(x[1:] <= x[:-1]):
         raise ValueError('x values must be monotonically increasing!')
+    if (b[0] < x[0]) or (b[-1] > x[-1]):
+        raise ValueError('Bins cannot extend beyond data.')
 
     # average and sum are very similar, so I will make avg work by using sum
     if method == 'avg':
@@ -175,10 +177,9 @@ def bin(np.ndarray[DBL_t] b, np.ndarray[DBL_t] x, np.ndarray[DBL_t] y, method):
     cdef np.ndarray[DBL_t] yy = np.interp(xx, x, y)
     cdef np.ndarray[LONG_t] binmap = np.searchsorted(xx, b, 'left')
 
-    cdef long k, i0, i1
+    cdef size_t i, k, i0, i1
     cdef np.ndarray[DBL_t] nv = np.zeros(n, dtype=DBL)
 
-    #guess for speed I won't make it check what method to use in each loop iteration
     if method == 'sum':
         for k in range(n):
             i0 = binmap[k]
@@ -187,5 +188,55 @@ def bin(np.ndarray[DBL_t] b, np.ndarray[DBL_t] x, np.ndarray[DBL_t] y, method):
             for i in range(i0, i1):
                 s += 0.5*(yy[i+1] + yy[i])*(xx[i+1] - xx[i])
             nv[k] = s
+
+    return nv
+
+
+def bin_rows(np.ndarray[DBL_t] b, np.ndarray[DBL_t] x, np.ndarray[DBL_t, ndim=2] y, method):
+
+    if np.any(np.diff(b) <= 0):
+        raise ValueError('No zero or negative length bins allowed!')
+    if np.any(x[1:] <= x[:-1]):
+        raise ValueError('x values must be monotonically increasing!')
+    if (b[0] < x[0]) or (b[-1] > x[-1]):
+        raise ValueError('Bins cannot extend beyond data.')
+
+    # average and sum are very similar, so I will make avg work by using sum
+    if method == 'avg':
+        nd = np.diff(b)
+        sums = bin(b, x, y, 'sum')
+        return sums / nd
+
+    m = len(y)
+    n = len(b) - 1
+
+    # xx and yy have the bin edge values inserted into the input values
+    cdef np.ndarray[DBL_t, ndim=2] nv = np.zeros([m,n], dtype=DBL)
+    cdef np.ndarray[DBL_t] ya = np.copy(y[:,0])
+    cdef size_t i, j, k
+    cdef float xb, xa, dx2, fac, yb
+
+    if method == 'sum':
+        xa = b[0]
+        i = 0
+        while x[i] < xa:
+            i += 1
+        for k in range(n):
+            sums = np.zeros(m, dtype=DBL)
+            xb = b[k+1]
+            while x[i] < xb:
+                dx2 = (x[i] - xa)/2.0
+                for j in range(m):
+                    sums[j] += (ya[j] + y[j,i])*dx2
+                    ya[j] = y[j,i]
+                xa = x[i]
+                i += 1
+            dx2 = (xb - xa)/2.0
+            fac = (xb - x[i-1])/(x[i] - x[i-1])
+            for j in range(m):
+                yb = (y[j,i] - y[j,i-1])*fac + y[j,i-1]
+                nv[j,k] = sums[j] + (yb + ya[j])*dx2
+                ya[j] = yb
+            xa = xb
 
     return nv
